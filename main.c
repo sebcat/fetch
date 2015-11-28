@@ -40,7 +40,7 @@ static void on_complete(struct fetch_transfer *transfer, void *data) {
 	printf("%s (%d) %luB\n", transfer->url, transfer->status, transfer->nrecv);
 }
 
-void usage() {
+static void usage() {
 	fprintf(stderr,
 		"Read a list of urls from stdin, print results to stdout\n"
 		"args:\n"
@@ -52,7 +52,7 @@ struct options {
 	int nconcurrent;
 };
 
-void args(int argc, char **argv, struct options *opts) {
+static void args(int argc, char **argv, struct options *opts) {
 	int ch;
 	char *eptr;
 
