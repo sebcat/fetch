@@ -3,58 +3,185 @@
 #include <assert.h>
 #include "fetch.h"
 
-int fetch_init(struct fetch_ctx *ctx, int nconcurrent, fetch_url_iter iter, void *iter_data) {
-	int i;
+/* received data is buffered in memory until completion. This is obviously bad
+   for larger responses, however it's sensible if we don't care about larger
+   responses.  */
+#define FETCH_BUFSZ 		(1024 * 1000)
+#define CONNECT_TIMEO_S		20
 
-	assert(ctx != NULL);
-	assert(nconcurrent > 0);
-	assert(iter != NULL);
+struct fetch_ctx {
+	CURLM *multi;
+	struct fetch_transfer *transfers;
+	CURL **easies;
+	int nconcurrent, nrunning;
 
-	memset(ctx, 0, sizeof(*ctx));
-	ctx->nconcurrent = nconcurrent;
-	ctx->easies = malloc(sizeof(CURL*)*nconcurrent);
-	if (ctx->easies == NULL) {
+	fetch_url_cb url_iter;
+	on_complete_cb on_complete;
+	void *data;
+};
+
+static int calc_http_status(const char *buf, size_t len) {
+	int a,b,c;
+
+	assert(buf != NULL);
+
+	if (len < 12) {
+		return -1;
+	}
+	a = buf[9] - '0';
+	b = buf[10] - '0';
+	c = buf[11] - '0';
+
+	if (a < 0 || a > 9 || b < 0 || b > 9 || c < 0 || c > 9) {
 		return -1;
 	}
 
-	for (i=0; i<nconcurrent; i++) {
-		ctx->easies[i] = curl_easy_init();
-		curl_easy_setopt(ctx->easies[i], CURLOPT_HEADER, 1L);
-		curl_easy_setopt(ctx->easies[i], CURLOPT_NOPROGRESS, 1L);
-		curl_easy_setopt(ctx->easies[i], CURLOPT_PROTOCOLS, CURLPROTO_HTTP|CURLPROTO_HTTPS);
-		curl_easy_setopt(ctx->easies[i], CURLOPT_TCP_NODELAY, 1L);
-		/* CURLOPT_ACCEPT_ENCODING: "" == all supported encodings */
-		curl_easy_setopt(ctx->easies[i], CURLOPT_ACCEPT_ENCODING, "");
+	return a*100+b*10+c;
+}
 
-		/* Abort the transfer if the transfer speed falls below 100 B/s for 10 seconds */
-		curl_easy_setopt(ctx->easies[i], CURLOPT_LOW_SPEED_LIMIT, 100L);
-		curl_easy_setopt(ctx->easies[i], CURLOPT_LOW_SPEED_TIME, 10L);
+static void fetch_call_complete(struct fetch_ctx *ctx,
+		struct fetch_transfer *transfer) {
+
+	assert(ctx != NULL);
+	assert(transfer != NULL);
+
+	if (ctx->on_complete != NULL) {
+		transfer->status =
+				calc_http_status(transfer->recv, transfer->nrecv);
+		ctx->on_complete(transfer, ctx->data);
+	}
+
+	transfer->nrecv = 0;
+}
+
+static size_t fetch_write(char *ptr, size_t size, size_t nmemb, void *data) {
+	struct fetch_transfer *transfer;
+	fetch_ctx *ctx;
+	const char *url;
+	CURL *easy;
+	size_t rsize = size*nmemb, left, ncopy;
+
+	assert(data != NULL);
+	transfer = data;
+	ctx = transfer->reserved;
+	assert(ctx != NULL);
+
+	left = FETCH_BUFSZ - transfer->nrecv;
+	if (rsize > 0 && left > 0)  {
+		if (rsize > left) {
+			ncopy = left;
+		} else {
+			ncopy = rsize;
+		}
+
+		memcpy(transfer->recv+transfer->nrecv, ptr, ncopy);
+		transfer->nrecv += ncopy;
+	}
+
+	if (transfer->nrecv == FETCH_BUFSZ) {
+		easy = ctx->easies[transfer->id];
+		fetch_call_complete(ctx, transfer);
+		url = ctx->url_iter(ctx->data);
+		if (url != NULL) {
+			snprintf(transfer->url, URL_BUFSZ, "%s", url);
+			curl_multi_remove_handle(ctx->multi, easy);
+			curl_easy_setopt(easy, CURLOPT_URL, url);
+			curl_multi_add_handle(ctx->multi, easy);
+			curl_multi_perform(ctx->multi, &ctx->nrunning);
+		}
+	}
+
+	return rsize;
+}
+
+fetch_ctx *fetch_new(int nconcurrent, fetch_url_cb urlfetch,
+		on_complete_cb on_complete, void *data) {
+	fetch_ctx *ctx;
+	CURL *easy;
+	int i;
+
+	assert(nconcurrent > 0);
+	assert(urlfetch != NULL);
+
+	ctx = malloc(sizeof(fetch_ctx));
+	if (ctx == NULL) {
+		goto fail;
+	}
+
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->nconcurrent = nconcurrent;
+	ctx->transfers = malloc(sizeof(struct fetch_transfer)*nconcurrent);
+	if (ctx->transfers == NULL) {
+		goto fail;
+	}
+
+	ctx->easies = malloc(sizeof(CURL*)*nconcurrent);
+	if (ctx->easies == NULL) {
+		goto fail;
+	}
+
+	memset(ctx->transfers, 0, sizeof(struct fetch_transfer)*nconcurrent);
+	memset(ctx->easies, 0, sizeof(CURL*)*nconcurrent);
+	for (i=0; i<nconcurrent; i++) {
+		ctx->transfers[i].id = i;
+		ctx->transfers[i].reserved = ctx;
+		ctx->transfers[i].recv = malloc(FETCH_BUFSZ);
+		if (ctx->transfers[i].recv == NULL) {
+			goto fail;
+		}
+
+		easy = curl_easy_init();
+		curl_easy_setopt(easy, CURLOPT_HEADER, 1L);
+		curl_easy_setopt(easy, CURLOPT_NOPROGRESS, 1L);
+		curl_easy_setopt(easy, CURLOPT_PROTOCOLS, 
+				CURLPROTO_HTTP|CURLPROTO_HTTPS);
+		curl_easy_setopt(easy, CURLOPT_TCP_NODELAY, 1L);
+		/* CURLOPT_ACCEPT_ENCODING: "" == all supported encodings */
+		curl_easy_setopt(easy, CURLOPT_ACCEPT_ENCODING, "");
+
+		/* Abort the transfer if the transfer speed falls below
+		   100 B/s for 10 seconds */
+		curl_easy_setopt(easy, CURLOPT_LOW_SPEED_LIMIT, 100L);
+		curl_easy_setopt(easy, CURLOPT_LOW_SPEED_TIME, 10L);
+		curl_easy_setopt(easy, CURLOPT_CONNECTTIMEOUT, CONNECT_TIMEO_S);
+
+		curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION, fetch_write);
+		curl_easy_setopt(easy, CURLOPT_WRITEDATA, &ctx->transfers[i]);
+
+		ctx->easies[i] = easy;
 	}
 
 	ctx->multi = curl_multi_init();
-	ctx->url_iter = iter;
-	ctx->url_iter_data = iter_data;
-	return 0;
+	if (ctx->multi == NULL) {
+		goto fail;
+	}
+
+	ctx->on_complete = on_complete;
+	ctx->url_iter = urlfetch;
+	ctx->data = data;
+	return ctx;
+
+fail:
+	fetch_free(ctx);
+	return NULL;
 }
 
 static int fetch_select(struct fetch_ctx *ctx) {
 	fd_set fdread, fdwrite, fdexcept;
 	int ret, maxfd;
-	struct timeval to;
-	long timeo;
+	struct timeval to, wait = {0, 100*1000};
+	long timeo = -1;
 
 	FD_ZERO(&fdread);
 	FD_ZERO(&fdwrite);
 	FD_ZERO(&fdexcept);
 
-	if (curl_multi_timeout(ctx->multi, &timeo) != CURLM_OK) {
-		return -1;
-	}
-
-	to.tv_sec = timeo / 1000;
-	if (to.tv_sec > 1) {
-		to.tv_sec = 1;
+	curl_multi_timeout(ctx->multi, &timeo);
+	if (timeo < 0) {
+		to.tv_sec =1;
+		to.tv_usec = 0;
 	} else {
+		to.tv_sec = timeo / 1000;
 		to.tv_usec = (timeo % 1000) * 1000;
 	}
 
@@ -63,27 +190,47 @@ static int fetch_select(struct fetch_ctx *ctx) {
 		return -1;
 	}
 
-	return select(maxfd+1, &fdread, &fdwrite, &fdexcept, &to);
+	if (maxfd == -1) {
+		return select(maxfd+1, NULL, NULL, NULL, &wait);
+	} else {
+		return select(maxfd+1, &fdread, &fdwrite, &fdexcept, &to);
+	}
+}
+
+static int fetch_easy_id(struct fetch_ctx *ctx, CURL *easy) {
+	int i;
+
+	for(i=0; i<ctx->nconcurrent; i++) {
+		if (ctx->easies[i] == easy) {
+			return i;
+		}
+	}
+
+	return -1;
 }
 
 int fetch_event_loop(struct fetch_ctx *ctx) {
 	int i;
 	const char *url;
 	CURLMsg *msg;
+	struct fetch_transfer *transfer;
 
 	assert(ctx != NULL);
 
 	for(i=0; i<ctx->nconcurrent; i++) {
-		url = ctx->url_iter(ctx->url_iter_data);
+		url = ctx->url_iter(ctx->data);
 		if (url == NULL) {
 			break;
 		}
 
+		snprintf(ctx->transfers[i].url, URL_BUFSZ, "%s", url);
 		curl_easy_setopt(ctx->easies[i], CURLOPT_URL, url);
 		curl_multi_add_handle(ctx->multi, ctx->easies[i]);
 	}
 
+	curl_multi_perform(ctx->multi, &ctx->nrunning);
 	do {
+
 		if (fetch_select(ctx) == -1) {
 			return -1;
 		}
@@ -92,23 +239,45 @@ int fetch_event_loop(struct fetch_ctx *ctx) {
 		for(msg = curl_multi_info_read(ctx->multi, &i); msg != NULL; 
 				msg = curl_multi_info_read(ctx->multi, &i)) {
 			if (msg->msg==CURLMSG_DONE) {
-				url = ctx->url_iter(ctx->url_iter_data);
-				if (url != NULL) {
-					curl_easy_setopt(msg->easy_handle, CURLOPT_URL, url);
+				i = fetch_easy_id(ctx, msg->easy_handle);
+				transfer = &ctx->transfers[i];
+				fetch_call_complete(ctx, transfer);
+				url = ctx->url_iter(ctx->data);
+				if (url == NULL) {
+					break;
 				}
+
+				snprintf(transfer->url, URL_BUFSZ, "%s", url);
+				curl_multi_remove_handle(ctx->multi, msg->easy_handle);
+				curl_easy_setopt(msg->easy_handle, CURLOPT_URL, url);
+				curl_multi_add_handle(ctx->multi, msg->easy_handle);
 			}
+
+			curl_multi_perform(ctx->multi, &ctx->nrunning);
 		}
 	} while (ctx->nrunning > 0);
 	return 0;
 }
 
-void fetch_cleanup(struct fetch_ctx *ctx) {
+void fetch_free(struct fetch_ctx *ctx) {
 	int i;
 
 	if (ctx != NULL) {
+		if (ctx->transfers != NULL) {
+			for(i=0; i<ctx->nconcurrent; i++) {
+				if (ctx->transfers[i].recv != NULL) {
+					free(ctx->transfers[i].recv);
+				}
+			}
+
+			free(ctx->transfers);
+		}
+
 		if (ctx->easies != NULL) {
 			for(i=0; i<ctx->nconcurrent; i++) {
-				curl_easy_cleanup(ctx->easies[i]);
+				if (ctx->easies[i] != NULL) {
+					curl_easy_cleanup(ctx->easies[i]);
+				}
 			}
 
 			free(ctx->easies);
@@ -117,6 +286,8 @@ void fetch_cleanup(struct fetch_ctx *ctx) {
 		if (ctx->multi != NULL) {
 			curl_multi_cleanup(ctx->multi);
 		}
+
+		free(ctx);
 	}
 }
 
