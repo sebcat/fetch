@@ -4,7 +4,7 @@ RM			:= rm -f
 AR			:= ar rcs
 SRCS		:= main.c fetch.c
 
-.PHONY: clean
+.PHONY: clean distclean
 
 all: curl-multi
 
@@ -17,3 +17,5 @@ curl-multi: libfetch.a main.c
 
 clean:
 	$(RM) curl-multi libfetch.a fetch.o
+
+distclean: clean
