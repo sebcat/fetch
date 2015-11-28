@@ -53,12 +53,12 @@ static int fetch_select(struct fetch_ctx *ctx) {
 	} else {
 		to.tv_usec = (timeo % 1000) * 1000;
 	}
-	
+
 	ret = curl_multi_fdset(ctx->multi, &fdread, &fdwrite, &fdexcept, &maxfd);
 	if (ret != CURLM_OK) {
 		return -1;
 	}
-	
+
 	return select(maxfd+1, &fdread, &fdwrite, &fdexcept, &to);
 }
 
