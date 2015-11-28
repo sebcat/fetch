@@ -138,6 +138,10 @@ fetch_ctx *fetch_new(int nconcurrent, fetch_url_cb urlfetch,
 		curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION, fetch_write);
 		curl_easy_setopt(easy, CURLOPT_WRITEDATA, &ctx->transfers[i]);
 
+		/* XXX: don't verify certificates */
+		curl_easy_setopt(easy, CURLOPT_SSL_VERIFYHOST, 0L);
+		curl_easy_setopt(easy, CURLOPT_SSL_VERIFYPEER, 0L);
+
 		ctx->easies[i] = easy;
 	}
 
