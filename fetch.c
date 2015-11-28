@@ -58,8 +58,6 @@ static void fetch_call_complete(struct fetch_ctx *ctx,
 static size_t fetch_write(char *ptr, size_t size, size_t nmemb, void *data) {
 	struct fetch_transfer *transfer;
 	fetch_ctx *ctx;
-	const char *url;
-	CURL *easy;
 	size_t rsize = size*nmemb, left, ncopy;
 
 	assert(data != NULL);
@@ -79,17 +77,8 @@ static size_t fetch_write(char *ptr, size_t size, size_t nmemb, void *data) {
 		transfer->nrecv += ncopy;
 	}
 
-	if (transfer->nrecv == FETCH_BUFSZ) {
-		easy = ctx->easies[transfer->id];
-		fetch_call_complete(ctx, transfer);
-		url = ctx->url_iter(ctx->data);
-		if (url != NULL) {
-			snprintf(transfer->url, URL_BUFSZ, "%s", url);
-			curl_multi_remove_handle(ctx->multi, easy);
-			curl_easy_setopt(easy, CURLOPT_URL, url);
-			curl_multi_add_handle(ctx->multi, easy);
-			curl_multi_perform(ctx->multi, &ctx->nrunning);
-		}
+	if (transfer->nrecv >= FETCH_BUFSZ) {
+		return 0;
 	}
 
 	return rsize;
