@@ -1,4 +1,4 @@
-CFLAGS		:= `curl-config --cflags` -Wall -Werror -g
+CFLAGS		:= `curl-config --cflags` -Wall -Werror -s -O2 -DNDEBUG
 LDFLAGS 	:= `curl-config --libs`
 RM			?= rm -f
 SRCS		:= main.c fetch.c
