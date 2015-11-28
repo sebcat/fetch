@@ -25,6 +25,10 @@ int fetch_init(struct fetch_ctx *ctx, int nconcurrent, fetch_url_iter iter, void
 		curl_easy_setopt(ctx->easies[i], CURLOPT_TCP_NODELAY, 1L);
 		/* CURLOPT_ACCEPT_ENCODING: "" == all supported encodings */
 		curl_easy_setopt(ctx->easies[i], CURLOPT_ACCEPT_ENCODING, "");
+
+		/* Abort the transfer if the transfer speed falls below 100 B/s for 10 seconds */
+		curl_easy_setopt(ctx->easies[i], CURLOPT_LOW_SPEED_LIMIT, 100L);
+		curl_easy_setopt(ctx->easies[i], CURLOPT_LOW_SPEED_TIME, 10L);
 	}
 
 	ctx->multi = curl_multi_init();
