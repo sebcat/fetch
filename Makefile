@@ -9,7 +9,7 @@ SRCS		:= main.c fetch.c
 all: curl-multi
 
 libfetch.a: fetch.c
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) -c fetch.c
 	$(AR) $@ fetch.o
 
 curl-multi: libfetch.a main.c
