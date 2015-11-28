@@ -6,7 +6,7 @@
 /* received data is buffered in memory until completion. This is obviously bad
    for larger responses, however it's sensible if we don't care about larger
    responses.  */
-#define FETCH_BUFSZ 		(1024 * 1000)
+#define FETCH_BUFSZ 		(1024 * 1000 - 1)
 #define CONNECT_TIMEO_S		20
 
 struct fetch_ctx {
@@ -48,6 +48,7 @@ static void fetch_call_complete(struct fetch_ctx *ctx,
 	if (ctx->on_complete != NULL) {
 		transfer->status =
 				calc_http_status(transfer->recv, transfer->nrecv);
+		transfer->recv[transfer->nrecv] = '\0';
 		ctx->on_complete(transfer, ctx->data);
 	}
 
@@ -125,7 +126,7 @@ fetch_ctx *fetch_new(int nconcurrent, fetch_url_cb urlfetch,
 	for (i=0; i<nconcurrent; i++) {
 		ctx->transfers[i].id = i;
 		ctx->transfers[i].reserved = ctx;
-		ctx->transfers[i].recv = malloc(FETCH_BUFSZ);
+		ctx->transfers[i].recv = malloc(FETCH_BUFSZ+1);
 		if (ctx->transfers[i].recv == NULL) {
 			goto fail;
 		}
