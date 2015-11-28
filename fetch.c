@@ -57,13 +57,10 @@ static void fetch_call_complete(struct fetch_ctx *ctx,
 
 static size_t fetch_write(char *ptr, size_t size, size_t nmemb, void *data) {
 	struct fetch_transfer *transfer;
-	fetch_ctx *ctx;
 	size_t rsize = size*nmemb, left, ncopy;
 
 	assert(data != NULL);
 	transfer = data;
-	ctx = transfer->reserved;
-	assert(ctx != NULL);
 
 	left = FETCH_BUFSZ - transfer->nrecv;
 	if (rsize > 0 && left > 0)  {
