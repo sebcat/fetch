@@ -20,6 +20,11 @@ int fetch_init(struct fetch_ctx *ctx, int nconcurrent, fetch_url_iter iter, void
 	for (i=0; i<nconcurrent; i++) {
 		ctx->easies[i] = curl_easy_init();
 		curl_easy_setopt(ctx->easies[i], CURLOPT_HEADER, 1L);
+		curl_easy_setopt(ctx->easies[i], CURLOPT_NOPROGRESS, 1L);
+		curl_easy_setopt(ctx->easies[i], CURLOPT_PROTOCOLS, CURLPROTO_HTTP|CURLPROTO_HTTPS);
+		curl_easy_setopt(ctx->easies[i], CURLOPT_TCP_NODELAY, 1L);
+		/* CURLOPT_ACCEPT_ENCODING: "" == all supported encodings */
+		curl_easy_setopt(ctx->easies[i], CURLOPT_ACCEPT_ENCODING, "");
 	}
 
 	ctx->multi = curl_multi_init();
