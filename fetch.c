@@ -6,7 +6,7 @@
 /* received data is buffered in memory until completion. This is obviously bad
    for larger responses, however it's sensible if we don't care about larger
    responses.  */
-#define FETCH_BUFSZ 		(1024 * 1000 - 1)
+#define FETCH_BUFSZ			(1024 * 1000 - 1)
 #define CONNECT_TIMEO_S		20
 
 struct fetch_ctx {
@@ -120,7 +120,7 @@ fetch_ctx *fetch_new(int nconcurrent, fetch_url_cb urlfetch,
 		easy = curl_easy_init();
 		curl_easy_setopt(easy, CURLOPT_HEADER, 1L);
 		curl_easy_setopt(easy, CURLOPT_NOPROGRESS, 1L);
-		curl_easy_setopt(easy, CURLOPT_PROTOCOLS, 
+		curl_easy_setopt(easy, CURLOPT_PROTOCOLS,
 				CURLPROTO_HTTP|CURLPROTO_HTTPS);
 		curl_easy_setopt(easy, CURLOPT_TCP_NODELAY, 1L);
 		/* CURLOPT_ACCEPT_ENCODING: "" == all supported encodings */
@@ -227,7 +227,7 @@ int fetch_event_loop(struct fetch_ctx *ctx) {
 		}
 
 		curl_multi_perform(ctx->multi, &ctx->nrunning);
-		for(msg = curl_multi_info_read(ctx->multi, &i); msg != NULL; 
+		for(msg = curl_multi_info_read(ctx->multi, &i); msg != NULL;
 				msg = curl_multi_info_read(ctx->multi, &i)) {
 			if (msg->msg==CURLMSG_DONE) {
 				i = fetch_easy_id(ctx, msg->easy_handle);

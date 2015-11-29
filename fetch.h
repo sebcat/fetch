@@ -20,7 +20,7 @@ typedef struct fetch_ctx fetch_ctx;
 typedef const char *(*fetch_url_cb)(void *);
 typedef void (*on_complete_cb)(struct fetch_transfer *, void *);
 
-fetch_ctx *fetch_new(int nconcurrent, fetch_url_cb urlfetch, 
+fetch_ctx *fetch_new(int nconcurrent, fetch_url_cb urlfetch,
 		on_complete_cb on_complete, void *data);
 int fetch_event_loop(struct fetch_ctx *ctx);
 void fetch_free(struct fetch_ctx *ctx);
