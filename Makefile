@@ -6,16 +6,16 @@ SRCS		:= main.c fetch.c
 
 .PHONY: clean distclean
 
-all: curl-multi
+all: fetch
 
 libfetch.a: fetch.c
 	$(CC) $(CFLAGS) -c fetch.c
 	$(AR) $@ fetch.o
 
-curl-multi: libfetch.a main.c
+fetch: libfetch.a main.c
 	$(CC) $(CFLAGS) -s -o $@ main.c libfetch.a $(LDFLAGS)
 
 clean:
-	$(RM) curl-multi libfetch.a fetch.o
+	$(RM) fetch libfetch.a fetch.o
 
 distclean: clean
