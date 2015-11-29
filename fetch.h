@@ -23,6 +23,7 @@ typedef void (*on_complete_cb)(struct fetch_transfer *, void *);
 fetch_ctx *fetch_new(int nconcurrent, fetch_url_cb urlfetch,
 		on_complete_cb on_complete, void *data);
 int fetch_event_loop(struct fetch_ctx *ctx);
+int fetch_resolve(struct fetch_ctx *ctx, const char *resolvestr);
 void fetch_free(struct fetch_ctx *ctx);
 
 

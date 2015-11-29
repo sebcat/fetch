@@ -14,6 +14,7 @@ struct fetch_ctx {
 	struct fetch_transfer *transfers;
 	CURL **easies;
 	int nconcurrent, nrunning;
+	struct curl_slist *resolvestrs;
 
 	fetch_url_cb url_iter;
 	on_complete_cb on_complete;
@@ -216,6 +217,10 @@ int fetch_event_loop(struct fetch_ctx *ctx) {
 
 		snprintf(ctx->transfers[i].url, URL_BUFSZ, "%s", url);
 		curl_easy_setopt(ctx->easies[i], CURLOPT_URL, url);
+		if (ctx->resolvestrs != NULL) {
+			curl_easy_setopt(ctx->easies[i], CURLOPT_RESOLVE, ctx->resolvestrs);
+		}
+
 		curl_multi_add_handle(ctx->multi, ctx->easies[i]);
 	}
 
@@ -250,6 +255,23 @@ int fetch_event_loop(struct fetch_ctx *ctx) {
 	return 0;
 }
 
+int fetch_resolve(struct fetch_ctx *ctx, const char *resolvestr) {
+	struct curl_slist *ret;
+
+	assert(ctx != NULL);
+
+	if (resolvestr != NULL) {
+		ret = curl_slist_append(ctx->resolvestrs, resolvestr);
+		if (ret == NULL) {
+			return -1;
+		}
+
+		ctx->resolvestrs = ret;
+	}
+
+	return 0;
+}
+
 void fetch_free(struct fetch_ctx *ctx) {
 	int i;
 
@@ -276,6 +298,10 @@ void fetch_free(struct fetch_ctx *ctx) {
 
 		if (ctx->multi != NULL) {
 			curl_multi_cleanup(ctx->multi);
+		}
+
+		if (ctx->resolvestrs != NULL) {
+			curl_slist_free_all(ctx->resolvestrs);
 		}
 
 		free(ctx);
