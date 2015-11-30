@@ -203,7 +203,7 @@ static int fetch_easy_id(struct fetch_ctx *ctx, CURL *easy) {
 
 int fetch_event_loop(struct fetch_ctx *ctx) {
 	int i;
-	const char *url;
+	const char *url = NULL;
 	CURLMsg *msg;
 	struct fetch_transfer *transfer;
 
@@ -238,7 +238,10 @@ int fetch_event_loop(struct fetch_ctx *ctx) {
 				i = fetch_easy_id(ctx, msg->easy_handle);
 				transfer = &ctx->transfers[i];
 				fetch_call_complete(ctx, transfer);
-				url = ctx->url_iter(ctx->data);
+				if (url != NULL) {
+					url = ctx->url_iter(ctx->data);
+				}
+
 				if (url == NULL) {
 					break;
 				}
