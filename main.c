@@ -37,7 +37,7 @@ static const char *next_url(void *data) {
 }
 
 static void on_complete(struct fetch_transfer *transfer, void *data) {
-	printf("%s (%d) %luB\n", transfer->url, transfer->status, transfer->nrecv);
+	printf("%s (%d) %zdB\n", transfer->url, transfer->status, transfer->nrecv);
 }
 
 struct options {
