@@ -238,18 +238,16 @@ int fetch_event_loop(struct fetch_ctx *ctx) {
 				i = fetch_easy_id(ctx, msg->easy_handle);
 				transfer = &ctx->transfers[i];
 				fetch_call_complete(ctx, transfer);
+
+				curl_multi_remove_handle(ctx->multi, msg->easy_handle);
 				if (url != NULL) {
 					url = ctx->url_iter(ctx->data);
+					if (url != NULL) {
+						snprintf(transfer->url, URL_BUFSZ, "%s", url);
+						curl_easy_setopt(msg->easy_handle, CURLOPT_URL, url);
+						curl_multi_add_handle(ctx->multi, msg->easy_handle);
+					}
 				}
-
-				if (url == NULL) {
-					break;
-				}
-
-				snprintf(transfer->url, URL_BUFSZ, "%s", url);
-				curl_multi_remove_handle(ctx->multi, msg->easy_handle);
-				curl_easy_setopt(msg->easy_handle, CURLOPT_URL, url);
-				curl_multi_add_handle(ctx->multi, msg->easy_handle);
 			}
 
 			curl_multi_perform(ctx->multi, &ctx->nrunning);
