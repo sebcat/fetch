@@ -84,7 +84,7 @@ static size_t fetch_write(char *ptr, size_t size, size_t nmemb, void *data) {
 
 fetch_ctx *fetch_new(int nconcurrent, fetch_url_cb urlfetch,
 		on_complete_cb on_complete, void *data) {
-	fetch_ctx *ctx;
+	fetch_ctx *ctx = NULL;
 	CURL *easy;
 	int i;
 
@@ -154,7 +154,10 @@ fetch_ctx *fetch_new(int nconcurrent, fetch_url_cb urlfetch,
 	return ctx;
 
 fail:
-	fetch_free(ctx);
+	if (ctx != NULL) {
+		fetch_free(ctx);
+	}
+
 	return NULL;
 }
 
