@@ -13,7 +13,7 @@ struct fetch_ctx {
 	CURLM *multi;
 	struct fetch_transfer *transfers;
 	CURL **easies;
-	int nconcurrent, nrunning;
+	int nconcurrent;
 	struct curl_slist *resolvestrs;
 
 	fetch_url_cb url_iter;
@@ -206,6 +206,7 @@ static int fetch_easy_id(struct fetch_ctx *ctx, CURL *easy) {
 
 int fetch_event_loop(struct fetch_ctx *ctx) {
 	int i;
+	int nrunning = 0;
 	const char *url = NULL;
 	CURLMsg *msg;
 	struct fetch_transfer *transfer;
@@ -227,14 +228,14 @@ int fetch_event_loop(struct fetch_ctx *ctx) {
 		curl_multi_add_handle(ctx->multi, ctx->easies[i]);
 	}
 
-	curl_multi_perform(ctx->multi, &ctx->nrunning);
+	curl_multi_perform(ctx->multi, &nrunning);
 	do {
 
 		if (fetch_select(ctx) == -1) {
 			return -1;
 		}
 
-		curl_multi_perform(ctx->multi, &ctx->nrunning);
+		curl_multi_perform(ctx->multi, &nrunning);
 		for(msg = curl_multi_info_read(ctx->multi, &i); msg != NULL;
 				msg = curl_multi_info_read(ctx->multi, &i)) {
 			if (msg->msg==CURLMSG_DONE) {
@@ -253,9 +254,9 @@ int fetch_event_loop(struct fetch_ctx *ctx) {
 				}
 			}
 
-			curl_multi_perform(ctx->multi, &ctx->nrunning);
+			curl_multi_perform(ctx->multi, &nrunning);
 		}
-	} while (ctx->nrunning > 0);
+	} while (nrunning > 0);
 	return 0;
 }
 
