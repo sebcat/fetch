@@ -12,7 +12,6 @@ struct fetch_transfer {
 	size_t nrecv;
 	int status;
 	char url[URL_BUFSZ];
-	void *reserved;  /* no touching */
 };
 
 typedef struct fetch_ctx fetch_ctx;

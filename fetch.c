@@ -112,7 +112,6 @@ fetch_ctx *fetch_new(int nconcurrent, fetch_url_cb urlfetch,
 	memset(ctx->easies, 0, sizeof(CURL*)*nconcurrent);
 	for (i=0; i<nconcurrent; i++) {
 		ctx->transfers[i].id = i;
-		ctx->transfers[i].reserved = ctx;
 		ctx->transfers[i].recv = malloc(FETCH_BUFSZ+1);
 		if (ctx->transfers[i].recv == NULL) {
 			goto fail;
